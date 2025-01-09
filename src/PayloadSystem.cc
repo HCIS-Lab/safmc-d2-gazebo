@@ -8,6 +8,9 @@
 #include <std_msgs/msg/bool.hpp>
 #include <gz/sim/components/Name.hh>
 
+#include <iomanip> 
+#include <sstream>
+
 using namespace gz;
 using namespace sim;
 using namespace systems;
@@ -27,7 +30,9 @@ public:
         //init payload
         for (int i = 0; i < numPayload; ++i)
         {
-            std::string modelName = "payload" + std::to_string(i+1);
+            std::ostringstream oss;
+            oss << "payload" << std::setw(2) << std::setfill('0') << (i + 1);
+            std::string modelName = oss.str();
             auto entity = world.ModelByName(_ecm, modelName);
             payloadModelEntities.push_back(entity);
             if(entity == kNullEntity)

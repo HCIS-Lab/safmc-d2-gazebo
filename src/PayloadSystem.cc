@@ -31,7 +31,7 @@ public:
         for (int i = 0; i < numPayload; ++i)
         {
             std::ostringstream oss;
-            oss << "payload" << std::setw(2) << std::setfill('0') << (i + 1);
+            oss << "payload_" << std::setw(2) << std::setfill('0') << (i + 1);
             std::string modelName = oss.str();
             auto entity = world.ModelByName(_ecm, modelName);
             payloadModelEntities.push_back(entity);
@@ -51,7 +51,7 @@ public:
             droneGrabStatus.resize(numDrones, false);  
             for (int i = 0; i < numDrones; ++i)
             {
-                std::string modelName = "x500_" + std::to_string(i);
+                std::string modelName = "x500_safmc_d2_" + std::to_string(i);
                 auto entity = world.ModelByName(_ecm, modelName);
                 droneModelEntities.push_back(entity);
                 if (entity == kNullEntity)

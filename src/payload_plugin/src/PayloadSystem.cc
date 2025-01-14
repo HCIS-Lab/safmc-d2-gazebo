@@ -8,6 +8,8 @@
 #include <std_msgs/msg/bool.hpp>
 #include <gz/sim/components/Name.hh>
 
+#include "agent_msgs/msg/magnet_control.hpp" 
+
 #include <iomanip> 
 #include <sstream>
 
@@ -48,7 +50,11 @@ public:
 
         if(first){
             //init drones
-            droneGrabStatus.resize(numDrones, false);  
+            droneMagnetStatus.resize(numDrones, false);  
+            dronePayloadAttachedStatus.resize(numDrones, false); 
+            subscriptions.resize(numDrones, nullptr); 
+            publishers.resize(numDrones, nullptr);
+
             for (int i = 0; i < numDrones; ++i)
             {
                 std::string modelName = "x500_safmc_d2_" + std::to_string(i);
@@ -59,27 +65,37 @@ public:
                 else
                 {
                     std::cout << modelName << " : " << worldPose(entity, _ecm) << std::endl;
-                    std::string topicName = "/drone_" + std::to_string(i) + "/grab_status";
-                    auto callback = [this, i](const std_msgs::msg::Bool::SharedPtr msg) {
-                        this->droneGrabStatus[i] = msg->data;
-                        RCLCPP_INFO(node_->get_logger(), "Drone %d grab status updated: %s", i, msg->data ? "true" : "false");
+                    std::string topicName = "/drone_" + std::to_string(i) + "/magnet_control";
+                    auto callback = [this, i](const agent_msgs::msg::MagnetControl::SharedPtr msg) {
+                        this->droneMagnetStatus[i] = msg->magnet1; 
+                        if(!msg->magnet1) {
+                            dronePayloadAttachedStatus[i] = false;
+                            std_msgs::msg::Bool msg;
+                            msg.data = dronePayloadAttachedStatus[i];
+                            publishers[i]->publish(msg);
+                        }
+                        RCLCPP_INFO(node_->get_logger(), "Drone %d magnet status updated: %s", i, msg->magnet1 ? "true" : "false");
                     };
 
-                    auto subscription = node_->create_subscription<std_msgs::msg::Bool>(topicName, rclcpp::QoS(1).best_effort(), callback);
-                    subscriptions.push_back(subscription);
+                    subscriptions[i] = node_->create_subscription<agent_msgs::msg::MagnetControl>(topicName, rclcpp::QoS(1).best_effort(), callback);
+
+                    publishers[i] = node_->create_publisher<std_msgs::msg::Bool>("/drone_" + std::to_string(i) + "/is_loaded", 1);
+                    std_msgs::msg::Bool msg;
+                    msg.data = dronePayloadAttachedStatus[i];
+                    publishers[i]->publish(msg);
                 }
             }
             first = 0;
         }
         
-        //update payload pose if below the done and within 10 cm
+        //update payload pose if within 20 cm
         for (int i = 0; i < numPayload; i++) {
             if (payloadModelEntities[i] == kNullEntity)continue;
             auto payloadPose = worldPose(payloadModelEntities[i], _ecm); 
             auto payloadModel = Model(payloadModelEntities[i]);
             bool isAttached = false;
             for (int j = 0; j < numDrones; j++) {
-                if (droneModelEntities[j] == kNullEntity  || !droneGrabStatus[j])continue;
+                if (droneModelEntities[j] == kNullEntity  || !droneMagnetStatus[j] || dronePayloadAttachedStatus[j])continue;
                 auto dronePose = worldPose(droneModelEntities[j], _ecm); 
                 double dx = dronePose.Pos().X() - payloadPose.Pos().X();
                 double dy = dronePose.Pos().Y() - payloadPose.Pos().Y();
@@ -88,6 +104,10 @@ public:
                     isAttached = true;
                     Pose3d newPose(dronePose);
                     payloadModel.SetWorldPoseCmd(_ecm, newPose);
+                    dronePayloadAttachedStatus[j] = true;
+                    std_msgs::msg::Bool msg;
+                    msg.data = dronePayloadAttachedStatus[j];
+                    publishers[j]->publish(msg);
                     break;
                 }
             }
@@ -110,8 +130,10 @@ private:
     bool first = 1;
     std::vector<Entity> payloadModelEntities;
     std::vector<Entity> droneModelEntities;
-    std::vector<bool> droneGrabStatus;
-    std::vector<rclcpp::Subscription<std_msgs::msg::Bool>::SharedPtr> subscriptions;
+    std::vector<bool> droneMagnetStatus;
+    std::vector<bool> dronePayloadAttachedStatus;
+    std::vector<rclcpp::Subscription<agent_msgs::msg::MagnetControl>::SharedPtr> subscriptions;
+    std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> publishers;
     rclcpp::Node::SharedPtr node_;
 };
 

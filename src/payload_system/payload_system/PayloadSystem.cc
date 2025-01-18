@@ -4,13 +4,13 @@
 #include <gz/sim/Util.hh>
 #include <gz/sim/World.hh>
 
+#include <gz/sim/components/Name.hh>
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
-#include <gz/sim/components/Name.hh>
 
-#include "agent_msgs/msg/magnet_control.hpp" 
+#include "agent_msgs/msg/magnet_control.hpp"
 
-#include <iomanip> 
+#include <iomanip>
 #include <sstream>
 
 using namespace gz;
@@ -20,16 +20,17 @@ using namespace math;
 
 class PayloadSystem : public System, public ISystemConfigure, public ISystemPreUpdate, public ISystemPostUpdate
 {
-public:
+  public:
     virtual void Configure(const Entity &_entity, const std::shared_ptr<const sdf::Element> &_sdf,
                            EntityComponentManager &_ecm, EventManager &_eventMgr) override
     {
-        if (!rclcpp::ok())rclcpp::init(0, nullptr);
-        node_ = rclcpp::Node::make_shared("custom_system");
+        if (!rclcpp::ok())
+            rclcpp::init(0, nullptr);
+        node_ = rclcpp::Node::make_shared("payload_system");
         world = World(_entity);
         std::cout << world.ModelCount(_ecm) << std::endl;
 
-        //init payload
+        // init payload
         for (int i = 0; i < numPayload; ++i)
         {
             std::ostringstream oss;
@@ -37,7 +38,7 @@ public:
             std::string modelName = oss.str();
             auto entity = world.ModelByName(_ecm, modelName);
             payloadModelEntities.push_back(entity);
-            if(entity == kNullEntity)
+            if (entity == kNullEntity)
                 std::cout << "NULL payload" << std::endl;
             else
                 std::cout << modelName << " : " << worldPose(entity, _ecm) << std::endl;
@@ -48,11 +49,12 @@ public:
     {
         rclcpp::spin_some(this->node_);
 
-        if(first){
-            //init drones
-            droneMagnetStatus.resize(numDrones, false);  
-            dronePayloadAttachedStatus.resize(numDrones, false); 
-            subscriptions.resize(numDrones, nullptr); 
+        if (first)
+        {
+            // init drones
+            droneMagnetStatus.resize(numDrones, false);
+            dronePayloadAttachedStatus.resize(numDrones, false);
+            subscriptions.resize(numDrones, nullptr);
             publishers.resize(numDrones, nullptr);
 
             for (int i = 0; i < numDrones; ++i)
@@ -67,19 +69,23 @@ public:
                     std::cout << modelName << " : " << worldPose(entity, _ecm) << std::endl;
                     std::string topicName = "/drone_" + std::to_string(i) + "/magnet_control";
                     auto callback = [this, i](const agent_msgs::msg::MagnetControl::SharedPtr msg) {
-                        this->droneMagnetStatus[i] = msg->magnet1; 
-                        if(!msg->magnet1) {
+                        this->droneMagnetStatus[i] = msg->magnet1;
+                        if (!msg->magnet1)
+                        {
                             dronePayloadAttachedStatus[i] = false;
                             std_msgs::msg::Bool msg;
                             msg.data = dronePayloadAttachedStatus[i];
                             publishers[i]->publish(msg);
                         }
-                        RCLCPP_INFO(node_->get_logger(), "Drone %d magnet status updated: %s", i, msg->magnet1 ? "true" : "false");
+                        RCLCPP_INFO(node_->get_logger(), "Drone %d magnet status updated: %s", i,
+                                    msg->magnet1 ? "true" : "false");
                     };
 
-                    subscriptions[i] = node_->create_subscription<agent_msgs::msg::MagnetControl>(topicName, rclcpp::QoS(1).best_effort(), callback);
+                    subscriptions[i] = node_->create_subscription<agent_msgs::msg::MagnetControl>(
+                        topicName, rclcpp::QoS(1).best_effort(), callback);
 
-                    publishers[i] = node_->create_publisher<std_msgs::msg::Bool>("/drone_" + std::to_string(i) + "/is_loaded", 1);
+                    publishers[i] =
+                        node_->create_publisher<std_msgs::msg::Bool>("/drone_" + std::to_string(i) + "/is_loaded", 1);
                     std_msgs::msg::Bool msg;
                     msg.data = dronePayloadAttachedStatus[i];
                     publishers[i]->publish(msg);
@@ -87,20 +93,25 @@ public:
             }
             first = 0;
         }
-        
-        //update payload pose if within 20 cm
-        for (int i = 0; i < numPayload; i++) {
-            if (payloadModelEntities[i] == kNullEntity)continue;
-            auto payloadPose = worldPose(payloadModelEntities[i], _ecm); 
+
+        // update payload pose if within 20 cm
+        for (int i = 0; i < numPayload; i++)
+        {
+            if (payloadModelEntities[i] == kNullEntity)
+                continue;
+            auto payloadPose = worldPose(payloadModelEntities[i], _ecm);
             auto payloadModel = Model(payloadModelEntities[i]);
             bool isAttached = false;
-            for (int j = 0; j < numDrones; j++) {
-                if (droneModelEntities[j] == kNullEntity  || !droneMagnetStatus[j] || dronePayloadAttachedStatus[j])continue;
-                auto dronePose = worldPose(droneModelEntities[j], _ecm); 
+            for (int j = 0; j < numDrones; j++)
+            {
+                if (droneModelEntities[j] == kNullEntity || !droneMagnetStatus[j] || dronePayloadAttachedStatus[j])
+                    continue;
+                auto dronePose = worldPose(droneModelEntities[j], _ecm);
                 double dx = dronePose.Pos().X() - payloadPose.Pos().X();
                 double dy = dronePose.Pos().Y() - payloadPose.Pos().Y();
                 double dz = dronePose.Pos().Z() - payloadPose.Pos().Z();
-                if (sqrt(dx * dx + dy * dy + dz * dz) < threshold) { 
+                if (sqrt(dx * dx + dy * dy + dz * dz) < threshold)
+                {
                     isAttached = true;
                     Pose3d newPose(dronePose);
                     payloadModel.SetWorldPoseCmd(_ecm, newPose);
@@ -111,18 +122,18 @@ public:
                     break;
                 }
             }
-            if (!isAttached) {
-                //should re-apply gravity
+            if (!isAttached)
+            {
+                // should re-apply gravity
             }
         }
     }
 
-    virtual void PostUpdate(const UpdateInfo &_info,
-                            const EntityComponentManager &_ecm) override
+    virtual void PostUpdate(const UpdateInfo &_info, const EntityComponentManager &_ecm) override
     {
     }
 
-private:
+  private:
     World world;
     const double threshold = 0.2;
     const int numDrones = 4;

@@ -5,23 +5,13 @@
 請先安裝以下必要的 library：
 
 ```sh
-sudo apt install -y libgz-cmake4-dev libgz-plugin3-dev libgz-sim9-dev
+sudo apt install -y libgz-cmake4-dev libgz-plugin3-dev libgz-sim8-dev
 ```
 
 ## Build
 
-1. 建立並進入 build 目錄
-
 ```sh
-mkdir build
-cd build
-```
-
-2. 編譯
-
-```sh
-cmake ..
-make
+colcon build
 ```
 
 3. 確保在 world file 的 `<world>` 標籤下新增以下內容：
@@ -36,11 +26,12 @@ make
 4. 設定環境變數
 
 ```sh
-export GZ_SIM_SYSTEM_PLUGIN_PATH=/workspace/safmc-d2-gazebo/build
+export GZ_SIM_SYSTEM_PLUGIN_PATH=/workspace/safmc-d2-gazebo/build/PayloadSystem
 ```
 
 ## Run
 
 ```sh
+source /workspace/safmc-d2-gazebo/install/setup.bash
 gz sim <world file>
 ```

@@ -26,7 +26,7 @@ colcon build
 4. 設定環境變數
 
 ```sh
-export GZ_SIM_SYSTEM_PLUGIN_PATH=/workspace/safmc-d2-gazebo/build/PayloadSystem
+export GZ_SIM_SYSTEM_PLUGIN_PATH=/workspace/safmc-d2-gazebo/build/payload_system
 ```
 
 ## Run

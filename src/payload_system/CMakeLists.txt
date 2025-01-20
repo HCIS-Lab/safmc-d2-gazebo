@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22.1 FATAL_ERROR)
 
-project(PayloadSystem)
+project(payload_system)
 
 find_package(gz-cmake4 REQUIRED)
 find_package(gz-plugin3 REQUIRED COMPONENTS register)
@@ -13,7 +13,10 @@ find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(agent_msgs REQUIRED)
 
-add_library(${CMAKE_PROJECT_NAME} SHARED src/PayloadSystem.cc)
+add_library(${CMAKE_PROJECT_NAME} SHARED payload_system/PayloadSystem.cc)
+set_target_properties(${CMAKE_PROJECT_NAME} PROPERTIES
+    OUTPUT_NAME "PayloadSystem"
+)
 
 set_property(TARGET ${CMAKE_PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 

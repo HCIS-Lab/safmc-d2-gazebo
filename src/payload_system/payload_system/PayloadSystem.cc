@@ -8,7 +8,7 @@
 #include <rclcpp/rclcpp.hpp>
 #include <std_msgs/msg/bool.hpp>
 
-#include "agent_msgs/msg/magnet_control.hpp"
+#include "agent_msgs/msg/magnet.hpp"
 
 #include <iomanip>
 #include <sstream>
@@ -26,127 +26,143 @@ class PayloadSystem : public System, public ISystemConfigure, public ISystemPreU
     {
         if (!rclcpp::ok())
             rclcpp::init(0, nullptr);
-        node_ = rclcpp::Node::make_shared("payload_system");
+        node = rclcpp::Node::make_shared("payload_system");
         world = World(_entity);
-        std::cout << world.ModelCount(_ecm) << std::endl;
 
-        // init payload
-        for (int i = 0; i < numPayload; ++i)
-        {
-            std::ostringstream oss;
-            oss << "payload_" << std::setw(2) << std::setfill('0') << (i + 1);
-            std::string modelName = oss.str();
-            auto entity = world.ModelByName(_ecm, modelName);
-            payloadModelEntities.push_back(entity);
-            if (entity == kNullEntity)
-                std::cout << "NULL payload" << std::endl;
-            else
-                std::cout << modelName << " : " << worldPose(entity, _ecm) << std::endl;
-        }
+        payloadModelEntities.resize(numPayloads, kNullEntity);
+
+        droneModelEntities.resize(numDrones, kNullEntity);
+        isMagnetOn.resize(numDrones, false);
+        assignedPayload.resize(numDrones, -1);
+        MagnetSubscriptions.resize(numDrones, nullptr);
+        payloadPublishers.resize(numDrones, nullptr);
     }
 
     virtual void PreUpdate(const UpdateInfo &_info, EntityComponentManager &_ecm) override
     {
-        rclcpp::spin_some(this->node_);
 
-        if (first)
-        {
-            // init drones
-            droneMagnetStatus.resize(numDrones, false);
-            dronePayloadAttachedStatus.resize(numDrones, false);
-            subscriptions.resize(numDrones, nullptr);
-            publishers.resize(numDrones, nullptr);
-
-            for (int i = 0; i < numDrones; ++i)
-            {
-                std::string modelName = "x500_safmc_d2_" + std::to_string(i);
-                auto entity = world.ModelByName(_ecm, modelName);
-                droneModelEntities.push_back(entity);
-                if (entity == kNullEntity)
-                    std::cout << "NULL drone: " << modelName << std::endl;
-                else
-                {
-                    std::cout << modelName << " : " << worldPose(entity, _ecm) << std::endl;
-                    std::string topicName = "/drone_" + std::to_string(i) + "/magnet_control";
-                    auto callback = [this, i](const agent_msgs::msg::MagnetControl::SharedPtr msg) {
-                        this->droneMagnetStatus[i] = msg->magnet1;
-                        if (!msg->magnet1)
-                        {
-                            dronePayloadAttachedStatus[i] = false;
-                            std_msgs::msg::Bool msg;
-                            msg.data = dronePayloadAttachedStatus[i];
-                            publishers[i]->publish(msg);
-                        }
-                        RCLCPP_INFO(node_->get_logger(), "Drone %d magnet status updated: %s", i,
-                                    msg->magnet1 ? "true" : "false");
-                    };
-
-                    subscriptions[i] = node_->create_subscription<agent_msgs::msg::MagnetControl>(
-                        topicName, rclcpp::QoS(1).best_effort(), callback);
-
-                    publishers[i] =
-                        node_->create_publisher<std_msgs::msg::Bool>("/drone_" + std::to_string(i) + "/is_loaded", 1);
-                    std_msgs::msg::Bool msg;
-                    msg.data = dronePayloadAttachedStatus[i];
-                    publishers[i]->publish(msg);
-                }
-            }
-            first = 0;
-        }
+        rclcpp::spin_some(this->node);
 
         // update payload pose if within 20 cm
-        for (int i = 0; i < numPayload; i++)
+        for (int i = 0; i < numPayloads; ++i)
         {
             if (payloadModelEntities[i] == kNullEntity)
                 continue;
-            auto payloadPose = worldPose(payloadModelEntities[i], _ecm);
+
             auto payloadModel = Model(payloadModelEntities[i]);
-            bool isAttached = false;
+            auto payloadPose = worldPose(payloadModelEntities[i], _ecm);
+
             for (int j = 0; j < numDrones; j++)
             {
-                if (droneModelEntities[j] == kNullEntity || !droneMagnetStatus[j] || dronePayloadAttachedStatus[j])
+                if (droneModelEntities[j] == kNullEntity)
                     continue;
+
+                int previousPayload = assignedPayload[j];
+                bool isPayloadAssigned = false;
+
                 auto dronePose = worldPose(droneModelEntities[j], _ecm);
                 double dx = dronePose.Pos().X() - payloadPose.Pos().X();
                 double dy = dronePose.Pos().Y() - payloadPose.Pos().Y();
                 double dz = dronePose.Pos().Z() - payloadPose.Pos().Z();
-                if (sqrt(dx * dx + dy * dy + dz * dz) < threshold)
+                if (isMagnetOn[j] && (dx * dx + dy * dy + dz * dz < magneticRange * magneticRange))
                 {
-                    isAttached = true;
-                    Pose3d newPose(dronePose);
-                    payloadModel.SetWorldPoseCmd(_ecm, newPose);
-                    dronePayloadAttachedStatus[j] = true;
-                    std_msgs::msg::Bool msg;
-                    msg.data = dronePayloadAttachedStatus[j];
-                    publishers[j]->publish(msg);
-                    break;
+                    Pose3d newPayloadPose(dronePose);
+                    payloadModel.SetWorldPoseCmd(_ecm, newPayloadPose);
+                    assignedPayload[j] = i;
+                    isPayloadAssigned = true;
                 }
-            }
-            if (!isAttached)
-            {
-                // should re-apply gravity
+                else
+                {
+                    assignedPayload[j] = -1;
+                }
+
+                // payload assignment 改變時才 publish
+                if (previousPayload != assignedPayload[j])
+                {
+                    PublishIsLoaded(j);
+                }
+
+                if (isPayloadAssigned)
+                    break; // 不考慮多台 drone 對同一個 payload 作用的情況
             }
         }
     }
 
     virtual void PostUpdate(const UpdateInfo &_info, const EntityComponentManager &_ecm) override
     {
+        // read payload models (12)
+        for (int i = 0; i < numPayloads; ++i)
+        {
+            std::ostringstream oss;
+            oss << "payload_" << std::setw(2) << std::setfill('0') << (i + 1);
+            std::string payloadModelName = oss.str();
+
+            payloadModelEntities[i] = world.ModelByName(_ecm, payloadModelName);
+        }
+
+        // read drone models (4)
+        for (int i = 0; i < numDrones; ++i)
+        {
+            std::string droneModelName = "x500_safmc_d2_" + std::to_string(i);
+            droneModelEntities[i] = world.ModelByName(_ecm, droneModelName);
+
+            if (droneModelEntities[i] == kNullEntity)
+                continue;
+
+            if (MagnetSubscriptions[i] == nullptr)
+            {
+                auto callback = [this, i](const agent_msgs::msg::Magnet::SharedPtr msg) {
+                    this->isMagnetOn[i] = msg->magnet1;
+                    RCLCPP_INFO(node->get_logger(), "Drone %d magnet status updated: %s", i,
+                                this->isMagnetOn[i] ? "ON" : "OFF");
+                };
+
+                MagnetSubscriptions[i] = node->create_subscription<agent_msgs::msg::Magnet>(
+                    "/drone_" + std::to_string(i) + "/in/magnet", rclcpp::QoS(1).best_effort(), callback);
+            }
+
+            if (payloadPublishers[i] == nullptr)
+            {
+                payloadPublishers[i] =
+                    node->create_publisher<std_msgs::msg::Bool>("/drone_" + std::to_string(i) + "/out/payload", 1);
+                PublishIsLoaded(i);
+            }
+        }
     }
 
   private:
     World world;
-    const double threshold = 0.2;
+    const double magneticRange = 0.2;
     const int numDrones = 4;
-    const int numPayload = 12;
-    bool first = 1;
+    const int numPayloads = 12;
+    rclcpp::Node::SharedPtr node;
+
     std::vector<Entity> payloadModelEntities;
     std::vector<Entity> droneModelEntities;
-    std::vector<bool> droneMagnetStatus;
-    std::vector<bool> dronePayloadAttachedStatus;
-    std::vector<rclcpp::Subscription<agent_msgs::msg::MagnetControl>::SharedPtr> subscriptions;
-    std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> publishers;
-    rclcpp::Node::SharedPtr node_;
+
+    /// @brief 電磁鐵開/關
+    std::vector<bool> isMagnetOn;
+
+    /// @brief drone 目前撿起的 payload ID (0 - 11), -1 代表 NOT load
+    std::vector<int> assignedPayload;
+
+    /// @brief topic `/drone_?/in/magnet`
+    std::vector<rclcpp::Subscription<agent_msgs::msg::Magnet>::SharedPtr> MagnetSubscriptions;
+
+    /// @brief topic `/drone_?/out/payload`
+    std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> payloadPublishers;
+
+    void PublishIsLoaded(int droneIndex)
+    {
+        if (payloadPublishers[droneIndex])
+        {
+            std_msgs::msg::Bool msg;
+            msg.data = (assignedPayload[droneIndex] != -1);
+            payloadPublishers[droneIndex]->publish(msg);
+        }
+    }
 };
 
-GZ_ADD_PLUGIN(PayloadSystem, gz::sim::System, PayloadSystem::ISystemConfigure, PayloadSystem::ISystemPreUpdate)
+GZ_ADD_PLUGIN(PayloadSystem, gz::sim::System, PayloadSystem::ISystemConfigure, PayloadSystem::ISystemPreUpdate,
+              PayloadSystem::ISystemPostUpdate)
 GZ_ADD_PLUGIN_ALIAS(PayloadSystem, "gz::sim::systems::PayloadSystem")

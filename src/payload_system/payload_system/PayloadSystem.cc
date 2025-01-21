@@ -65,7 +65,10 @@ class PayloadSystem : public System, public ISystemConfigure, public ISystemPreU
                 double dx = dronePose.Pos().X() - payloadPose.Pos().X();
                 double dy = dronePose.Pos().Y() - payloadPose.Pos().Y();
                 double dz = dronePose.Pos().Z() - payloadPose.Pos().Z();
-                if (isMagnetOn[j] && (dx * dx + dy * dy + dz * dz < magneticRange * magneticRange))
+                if (isMagnetOn[j] &&                                                 // 磁鐵開啟
+                    (dx * dx + dy * dy + dz * dz < magneticRange * magneticRange) && // 距離足夠靠近
+                    (assignedPayload[j] == -1)                                       // 目前沒有撿起任何 payload
+                )
                 {
                     Pose3d newPayloadPose(dronePose);
                     payloadModel.SetWorldPoseCmd(_ecm, newPayloadPose);

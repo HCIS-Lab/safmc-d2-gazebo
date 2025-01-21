@@ -9,6 +9,7 @@
 #include <std_msgs/msg/bool.hpp>
 
 #include "agent_msgs/msg/magnet.hpp"
+#include "agent_msgs/msg/payload.hpp"
 
 #include <iomanip>
 #include <sstream>
@@ -124,7 +125,7 @@ class PayloadSystem : public System, public ISystemConfigure, public ISystemPreU
             if (payloadPublishers[i] == nullptr)
             {
                 payloadPublishers[i] =
-                    node->create_publisher<std_msgs::msg::Bool>("/drone_" + std::to_string(i) + "/out/payload", 1);
+                    node->create_publisher<agent_msgs::msg::Payload>("/drone_" + std::to_string(i) + "/out/payload", 1);
                 PublishIsLoaded(i);
             }
         }
@@ -150,14 +151,16 @@ class PayloadSystem : public System, public ISystemConfigure, public ISystemPreU
     std::vector<rclcpp::Subscription<agent_msgs::msg::Magnet>::SharedPtr> MagnetSubscriptions;
 
     /// @brief topic `/drone_?/out/payload`
-    std::vector<rclcpp::Publisher<std_msgs::msg::Bool>::SharedPtr> payloadPublishers;
+    std::vector<rclcpp::Publisher<agent_msgs::msg::Payload>::SharedPtr> payloadPublishers;
 
     void PublishIsLoaded(int droneIndex)
     {
         if (payloadPublishers[droneIndex])
         {
-            std_msgs::msg::Bool msg;
-            msg.data = (assignedPayload[droneIndex] != -1);
+            agent_msgs::msg::Payload msg;
+            msg.slot1 = (assignedPayload[droneIndex] != -1);
+            msg.slot2 = false;
+            msg.slot3 = false;
             payloadPublishers[droneIndex]->publish(msg);
         }
     }

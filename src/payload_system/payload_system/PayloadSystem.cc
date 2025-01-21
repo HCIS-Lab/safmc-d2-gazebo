@@ -161,9 +161,9 @@ class PayloadSystem : public System, public ISystemConfigure, public ISystemPreU
         if (payloadPublishers[droneIndex])
         {
             agent_msgs::msg::Payload msg;
-            msg.slot1 = (assignedPayload[droneIndex] != -1);
-            msg.slot2 = false;
-            msg.slot3 = false;
+            msg.payload1 = (assignedPayload[droneIndex] != -1);
+            msg.payload2 = false;
+            msg.payload3 = false;
             payloadPublishers[droneIndex]->publish(msg);
         }
     }

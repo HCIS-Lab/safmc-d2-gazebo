@@ -1,5 +1,7 @@
 # SAFME D2 Gazebo
 
+Custom Gazebo systems for the SAFMC D2 competition, including a payload pickup mechanism using an electromagnet.
+
 ## Prerequisite
 
 請先安裝以下必要的 library：

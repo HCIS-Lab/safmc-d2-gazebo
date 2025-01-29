@@ -1,4 +1,4 @@
-# SAFME D2 Gazebo
+# SAFMC D2 Gazebo
 
 Custom Gazebo systems for the SAFMC D2 competition, including a payload pickup mechanism using an electromagnet.
 

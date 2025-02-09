@@ -35,3 +35,9 @@ export GZ_SIM_SYSTEM_PLUGIN_PATH=/workspace/safmc-d2-gazebo/build/payload_system
 source /workspace/safmc-d2-gazebo/install/setup.bash
 gz sim <world file>
 ```
+
+## TODOs
+
+- [ ] 依照 https://github.com/gazebosim/gz-sim 的架構, src/systems/payload_system
+- [ ] Log 統一用 Gazebo gzmsg, gzerr, gzwarn, ...
+- [ ] Refactor 邏輯

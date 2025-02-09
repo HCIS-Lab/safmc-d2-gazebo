@@ -47,6 +47,10 @@ class PositionSystem : public System, public ISystemConfigure, public ISystemPos
             {
                 PublishPosition(entity, _ecm, publisher);
             }
+            else
+            {
+                gzwarn << "Failed to find model [" + modelName + "]" << std::endl;
+            }
         }
     }
 

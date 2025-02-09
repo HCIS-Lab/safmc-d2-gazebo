@@ -19,16 +19,14 @@ colcon build
 3. 確保在 world file 的 `<world>` 標籤下新增以下內容：
 
 ```xml
-<plugin
-  filename="libPayloadSystem.so"
-  name="gz::sim::systems::PayloadSystem">
-</plugin>
+<plugin name='gz::sim::systems::PayloadSystem' filename='libPayloadSystem.so' />
+<plugin name='gz::sim::systems::PositionSystem' filename='libPositionSystem.so' />
 ```
 
 4. 設定環境變數
 
 ```sh
-export GZ_SIM_SYSTEM_PLUGIN_PATH=/workspace/safmc-d2-gazebo/build/payload_system
+export GZ_SIM_SYSTEM_PLUGIN_PATH=/workspace/safmc-d2-gazebo/build/payload_system:/workspace/safmc-d2-gazebo/build/position_system
 ```
 
 ## Run

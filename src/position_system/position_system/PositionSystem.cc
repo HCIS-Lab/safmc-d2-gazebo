@@ -34,7 +34,8 @@ class PositionSystem : public System, public ISystemConfigure, public ISystemPos
 
         for (const auto &modelName : modelNames)
         {
-            positionPublishers[modelName] = node->create_publisher<geometry_msgs::msg::Point>("/pose/" + modelName, 1);
+            positionPublishers[modelName] =
+                node->create_publisher<geometry_msgs::msg::Point>("/position/" + modelName, 1);
         }
     }
 

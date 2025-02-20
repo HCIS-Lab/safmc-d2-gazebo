@@ -105,7 +105,7 @@ class PayloadSystem : public System, public ISystemConfigure, public ISystemPreU
         }
 
         // read drone models (4)
-        for (int i = 0; i < numDrones; ++i)
+        for (int i = 1; i <= numDrones; ++i)
         {
             std::string droneModelName = "x500_safmc_d2_" + std::to_string(i);
             droneModelEntities[i] = world.ModelByName(_ecm, droneModelName);
